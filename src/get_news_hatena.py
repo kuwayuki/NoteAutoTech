@@ -37,7 +37,7 @@ def convert_news_json_to_markdown(news_list: List[Dict]) -> str:
     body = ""
     for item in news_list:
         body += f"""
-## {item['rank']}. {item['title']}
+## {item['rank']}. {item['summaryTitle']}
 
 [{item['title']}]({item['url']})
 
@@ -74,9 +74,6 @@ def main(publish=False):
     for idx, item in enumerate(top_entries):
         news_titles_text += f"{idx+1}. {item['title']} ({item['date']}) {item['users']} USERS\n{item['url']}\n\n"
 
-    # print("ニュースタイトルリスト:\n", news_titles_text)
-    # send_to_google_chat(summary_text + news_titles_text)
-
     # rank, usersも含めてjson保存（usersはint型で保存）
     json_dir = os.path.join(
         os.path.dirname(os.path.dirname(__file__)), "history", "json"
@@ -109,12 +106,12 @@ def main(publish=False):
         if idx < RANK_LIMIT and item["url"]:
             urlBody = fetch_article_content_from_url(item["url"])
             results = simple(
-                topic=f"あなたはプロのライターです。タイトルから記事で一番伝えたい部分を考察し、1行目に自分なりのタイトルを先頭に絵文字付きで20文字程度で、2~4行目の3行に・から始まる箇条書きで1行は34文字(68byte)なのでそれ以下、5行目以降に300文字以内で要約してください。先頭や文末に～をまとめましたや改行などの情報は不要です。\nタイトル: {item['title']}\n記事: {urlBody}",
+                topic=f"あなたはプロのライターです。タイトルから記事で一番伝えたい部分を考察し、1行目に自分なりのタイトルを先頭に絵文字付きで20文字程度で、2~4行目の3行に・から始まる箇条書き（記号なし）で1行は30文字(60byte)なのでそれ以下、5行目以降に300文字以内で要約してください。先頭や文末に～をまとめましたや改行などの情報は不要です。\nタイトル: {item['title']}\n記事: {urlBody}",
             )
             summary = results[0]
             if summary:
                 lines = [line for line in summary.split("\n") if line.strip()]
-                entry["title"] = lines[0]
+                entry["summaryTitle"] = lines[0]
                 entry["points"] = lines[1:4]
                 entry["summary"] = "\n".join(lines[4:]).strip()
         if idx < RANK_LIMIT:

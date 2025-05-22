@@ -31,6 +31,8 @@ def save_history_json(json_filename, entries):
             d["title"] = item["title"]
         if "users" in item:
             d["users"] = item["users"]
+        if "summaryTitle" in item:
+            d["summaryTitle"] = item["summaryTitle"]
         if "summary" in item:
             d["summary"] = item["summary"]
         if "points" in item:
