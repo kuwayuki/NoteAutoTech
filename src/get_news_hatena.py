@@ -47,9 +47,13 @@ def main(publish=False):
     # send_to_google_chat(summary_text + news_titles_text)
 
     # rank, usersも含めてjson保存（usersはint型で保存）
+    json_dir = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "history", "json"
+    )
+    os.makedirs(json_dir, exist_ok=True)
     json_filename = os.path.join(
-        history_dir,
-        f"news_{now.year}_{now.month:02d}_{now.day:02d}_{now.hour:02d}.json",
+        json_dir,
+        f"news_{now.year}_{now.month:02d}_{now.day:02d}_{now.hour:02d}_{now.minute:02d}.json",
     )
     entries_for_json = []
     # noteの心得.mdを読み込む

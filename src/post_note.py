@@ -2,6 +2,7 @@ import os
 import asyncio
 from playwright.async_api import async_playwright
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
 
@@ -11,6 +12,11 @@ def parse_markdown(file_path):
     with open(file_path, encoding="utf-8") as f:
         lines = [line.rstrip("\n") for line in f.readlines()]
     title = lines[0].lstrip("#").strip()
+
+    now = datetime.now()
+    today = f"{now.year}/{now.month}/{now.day} {now.hour}:00"
+    # today = datetime.now().strftime("%Y/%m/%d")  # 例: 2025/09/13
+    title = f"【{today} 最新】毎日たった 5 分で技術トレンドを掴む！"
     if len(lines) > 2 and lines[-1].startswith("#"):
         hashtags = lines[-1].strip()
         body = "\n".join(lines[1:-1]).strip()
@@ -20,7 +26,12 @@ def parse_markdown(file_path):
     return title, body, hashtags
 
 
-async def main(markdown_path="article.md", headless=False, publish=False):
+MARKDOWN_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "history", "md", "article.md"
+)
+
+
+async def main(markdown_path=MARKDOWN_PATH, headless=False, publish=False):
     EMAIL = os.getenv("NOTE_EMAIL")
     PASSWORD = os.getenv("NOTE_PASSWORD")
 
@@ -107,8 +118,47 @@ async def main(markdown_path="article.md", headless=False, publish=False):
 
         await page.wait_for_timeout(500)
 
+        # 画像追加ボタンをクリック
+        await page.click('button[aria-label="画像を追加"]')
+        await page.wait_for_timeout(500)
+
+        # 「記事にあう画像を選ぶ」をクリック
+        await page.click('button:has-text("記事にあう画像を選ぶ")')
+        await page.wait_for_timeout(1000)
+
+        # 画像グリッドからランダムに1つ選択
+        # 画像が表示されるまで待機
+        await page.wait_for_selector(".sc-639f8778-2.djbaCR", timeout=10000)
+        await page.wait_for_timeout(2000)  # 追加の待機時間
+
+        image_elements = await page.query_selector_all(".sc-639f8778-2.djbaCR")
+        if image_elements:
+            # ランダムに1つの画像を選択
+            import random
+
+            random_image = random.choice(image_elements)
+            await random_image.click()
+            await page.wait_for_timeout(1000)
+
+            # 「この画像を挿入」ボタンをクリック
+            await page.click('button:has-text("この画像を挿入")')
+            await page.wait_for_timeout(3000)
+
+            # モーダル内の保存ボタンを明示的に取得してクリック
+            modal = await page.wait_for_selector('div[role="dialog"]', timeout=5000)
+            save_button = await modal.query_selector('button:has-text("保存")')
+            if save_button:
+                await save_button.scroll_into_view_if_needed()
+                await save_button.click()
+                await page.wait_for_timeout(13000)
+            else:
+                print("保存ボタンが見つかりませんでした")
+        else:
+            print("画像が見つかりませんでした")
+
         # 6. 下書き保存 or 公開
         if publish:
+            print("記事の投稿をします")
             # 「公開に進む」ボタンを押す
             await page.click("text=公開に進む")
             await page.wait_for_timeout(1000)
@@ -127,10 +177,11 @@ async def main(markdown_path="article.md", headless=False, publish=False):
             await page.click('button:has-text("投稿する")')
             print("記事の投稿が完了しました")
         else:
+            print("記事の下書きをします")
             await page.click("text=下書き保存")
             print("記事の下書き保存が完了しました")
 
-        # await browser.close()
+        await browser.close()
 
 
 if __name__ == "__main__":
