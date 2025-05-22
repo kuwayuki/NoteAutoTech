@@ -33,6 +33,8 @@ def save_history_json(json_filename, entries):
             d["users"] = item["users"]
         if "summary" in item:
             d["summary"] = item["summary"]
+        if "points" in item:
+            d["points"] = item["points"]
         data.append(d)
     with open(json_filename, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)

@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+import datetime
 from hatena_scraper import fetch_hatena_news_entries, fetch_article_content_from_url
 from history_manager import (
     load_history,
@@ -8,7 +8,6 @@ from history_manager import (
 )
 from utils import simple
 from post_note import main as post_note
-from typing import List, Dict
 import asyncio
 import sys
 
@@ -18,40 +17,10 @@ NOTE_KOKOROE_PATH = os.path.join(
 )
 # noteの心得.mdのパス
 NOTE_SAMPLE_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "public", "サンプル_footer.md"
+    os.path.dirname(os.path.dirname(__file__)), "public", "サンプル.md"
 )
 
 RANK_LIMIT = 5
-
-
-def convert_news_json_to_markdown(news_list: List[Dict]) -> str:
-    now = datetime.now()
-    today = f"{now.year}/{now.month}/{now.day} {now.hour}:00"
-    header = f"""# 【{today} 最新】毎日たった 5 分で技術トレンドを掴む！
-
-🗓️ 編集者コメント：
-話題の中から、「実務に役立つ」「本質的な示唆がある」「未来に影響を与えそうな技術」にフォーカスして、毎日数本を厳選しています。単なるトレンド紹介ではなく、実務者目線での要点整理と解釈を加えています。
-
----
-"""
-    body = ""
-    for item in news_list:
-        body += f"""
-## {item['rank']}. {item['title']}
-
-[{item['title']}]({item['url']})
-
-**🔍 ポイント要約**:
-**{item['points'][0]}**
-**{item['points'][1]}**
-**{item['points'][2]}**
-
-> {item['summary']}
-
----
-"""
-
-    return header + body
 
 
 def main(publish=False):
@@ -60,7 +29,7 @@ def main(publish=False):
         print("エントリーが見つかりませんでした。セレクタを確認してください。")
         return
 
-    now = datetime.now()
+    now = datetime.datetime.now()
     # historyディレクトリをsrcの一つ上のディレクトリに指定
     history_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "history")
     os.makedirs(history_dir, exist_ok=True)
@@ -108,25 +77,22 @@ def main(publish=False):
         summary = ""
         if idx < RANK_LIMIT and item["url"]:
             urlBody = fetch_article_content_from_url(item["url"])
-            results = simple(
-                topic=f"あなたはプロのライターです。タイトルから記事で一番伝えたい部分を考察し、1行目に自分なりのタイトルを先頭に絵文字付きで20文字程度で、2~4行目の3行に・から始まる箇条書きで1行は34文字(68byte)なのでそれ以下、5行目以降に300文字以内で要約してください。先頭や文末に～をまとめましたや改行などの情報は不要です。\nタイトル: {item['title']}\n記事: {urlBody}",
+            summary = simple(
+                topic=f"あなたはプロのライターです。タイトルから記事で一番伝えたい部分を考察し、300文字以内で要約してください。先頭や文末に～をまとめましたや改行などの情報は不要です。\nタイトル: {item['title']}\n記事: {urlBody}",
+                # model="gemini-2.5-flash-preview-04-17",
             )
-            summary = results[0]
             if summary:
-                lines = [line for line in summary.split("\n") if line.strip()]
-                entry["title"] = lines[0]
-                entry["points"] = lines[1:4]
-                entry["summary"] = "\n".join(lines[4:]).strip()
+                entry["summary"] = summary
         if idx < RANK_LIMIT:
             entries_for_json.append(entry)
     save_history_json(json_filename, entries_for_json)
-    markdown = convert_news_json_to_markdown(entries_for_json)
 
-    results_eval = simple(
-        topic=f"次のまとめた記事を総評してください。先頭や文末に～をまとめましたや```markdown、などの情報は不要です。\n【構成は下記のサンプルを意識してください】\n{note_sample}\n\n【記事】\n{markdown}",
+    history_list = load_history_json(json_filename)
+    markdown = simple(
+        topic=f"次のJsonでまとめた記事をNoteに投稿するのでmarkdownにしてください。先頭や文末に～をまとめましたや```markdown、などの情報は不要です。箇条書きの1行は大体36文字(64byte)なのでそれ以下にしてください。\n【構成は下記のサンプルを意識してください】\n{note_sample}\n\n【記事】\n{history_list}",
+        # topic=f"次のJsonでまとめた記事をNoteに投稿するのでmarkdownにしてください。先頭や文末に～をまとめました、などの情報は不要です。\n【書き方はコチラを意識してください】\n{note_kokoroe}\n\n【記事】\n{history_list}",
     )
-    markdown += "\n" + results_eval[0]
-    print(markdown)
+    # print(markdown)
 
     # markdownをhistory/mdディレクトリに保存
     md_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "history", "md")

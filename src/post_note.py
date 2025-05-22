@@ -150,7 +150,7 @@ async def main(markdown_path=MARKDOWN_PATH, headless=False, publish=False):
             if save_button:
                 await save_button.scroll_into_view_if_needed()
                 await save_button.click()
-                await page.wait_for_timeout(13000)
+                await page.wait_for_timeout(20000)
             else:
                 print("保存ボタンが見つかりませんでした")
         else:

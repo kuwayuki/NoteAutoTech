@@ -174,41 +174,51 @@ def get_chain(
 # 0. シンプル
 ########################################
 def simple(
-    topic: str,
+    topic: Union[str, List[str]],
     provider: str = None,
     model: str = None,
 ):
-    chains = []  # チェーンを格納するリスト
-    chains.append(
-        get_chain(
-            provider=provider if provider is not None else "gemini",
-            model=model if model is not None else "gemini-2.0-flash",
-            prompt_str="{topic}",
-            output_key="explanation",
+    # topicがstrならリスト化
+    if isinstance(topic, str):
+        topics = [topic]
+    else:
+        topics = topic
+
+    results = []
+    for t in topics:
+        chains = []  # チェーンを格納するリスト
+        chains.append(
+            get_chain(
+                provider=provider if provider is not None else "gemini",
+                model=model if model is not None else "gemini-2.0-flash",
+                prompt_str="{topic}",
+                output_key="explanation",
+            )
         )
-    )
 
-    # chains.append(
-    #     get_chain(
-    #         provider=provider if provider is not None else "gemini",
-    #         model=model if model is not None else "gemini-2.0-flash",
-    #         prompt_str="上記の説明を踏まえて、関連する具体例を一つ挙げてください。説明: {explanation}",
-    #         output_key="example",
-    #     )
-    # )
+        # 2つ目以降のチェーンを追加したい場合はここでappend
+        # chains.append(
+        #     get_chain(
+        #         provider=provider if provider is not None else "gemini",
+        #         model=model if model is not None else "gemini-2.0-flash",
+        #         prompt_str="上記の説明を踏まえて、関連する具体例を一つ挙げてください。説明: {explanation}",
+        #         output_key="example",
+        #     )
+        # )
 
-    # 2つのチェーンを連結して SequentialChain を作成
-    overall_chain = SequentialChain(
-        chains=chains,
-        input_variables=["topic"],
-        output_variables=["explanation"],
-        # output_variables=["explanation", "example"],
-    )
+        # SequentialChainを作成
+        overall_chain = SequentialChain(
+            chains=chains,
+            input_variables=["topic"],
+            output_variables=["explanation"],
+            # output_variables=["explanation", "example"],
+        )
 
-    result = overall_chain.invoke({"topic": topic})
-    print(result["explanation"])
-    # print(result["example"])
-    return result["explanation"]
+        result = overall_chain.invoke({"topic": t})
+        print(f"{t}: {result['explanation']}")
+        results.append(result["explanation"])
+        # print(result["example"])
+    return results
 
 
 ########################################
