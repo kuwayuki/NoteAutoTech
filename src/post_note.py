@@ -13,10 +13,9 @@ def parse_markdown(file_path):
         lines = [line.rstrip("\n") for line in f.readlines()]
     title = lines[0].lstrip("#").strip()
 
-    now = datetime.now()
-    today = f"{now.year}/{now.month}/{now.day} {now.hour}:00"
-    # today = datetime.now().strftime("%Y/%m/%d")  # 例: 2025/09/13
-    title = f"【{today} 最新】毎日たった 5 分で技術トレンドを掴む！"
+    # now = datetime.now()
+    # today = f"{now.year}/{now.month}/{now.day} {now.hour}:00"
+    # title = f"【{today} 最新】毎日たった 5 分で技術トレンドを掴む！"
     if len(lines) > 2 and lines[-1].startswith("#"):
         hashtags = lines[-1].strip()
         body = "\n".join(lines[1:-1]).strip()
@@ -110,6 +109,7 @@ async def main(markdown_path=MARKDOWN_PATH, headless=False, publish=False):
         await page.wait_for_timeout(500)
 
         await page.keyboard.press("ArrowDown")
+        await page.wait_for_timeout(500)
 
         # クリップボードにbodyをコピーしてペースト
         await page.evaluate(f"navigator.clipboard.writeText({body!r})")

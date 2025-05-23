@@ -26,11 +26,9 @@ RANK_LIMIT = 5
 
 def convert_news_json_to_markdown(news_list: List[Dict]) -> str:
     now = datetime.now()
-    today = f"{now.year}/{now.month}/{now.day} {now.hour}:00"
-    header = f"""# 【{today} 最新】毎日たった 5 分で技術トレンドを掴む！
-
+    header = f"""
 🗓️ 編集者コメント：
-話題の中から、「実務に役立つ」「本質的な示唆がある」「未来に影響を与えそうな技術」にフォーカスして、毎日数本を厳選しています。単なるトレンド紹介ではなく、実務者目線での要点整理と解釈を加えています。
+話題の中から、「実務に役立つ」「未来に影響を与えそうな技術」にフォーカスして、毎日数本をAIが要約します。単なるトレンド紹介ではなく、実務者目線での要点整理と解釈を加えています。
 
 ---
 """
@@ -106,7 +104,15 @@ def main(publish=False):
         if idx < RANK_LIMIT and item["url"]:
             urlBody = fetch_article_content_from_url(item["url"])
             results = simple(
-                topic=f"あなたはプロのライターです。タイトルから記事で一番伝えたい部分を考察し、1行目に自分なりのタイトルを先頭に絵文字付きで20文字程度で、2~4行目の3行に・から始まる箇条書き（記号なし）で1行は30文字(60byte)なのでそれ以下、5行目以降に300文字以内で要約してください。先頭や文末に～をまとめましたや改行などの情報は不要です。\nタイトル: {item['title']}\n記事: {urlBody}",
+                topic=f"""あなたはプロのライターです。
+タイトルから記事で一番伝えたい部分を考察し、
+1行目に自分なりのタイトルを先頭に絵文字付きで20文字程度で、
+2~4行目の3行に・から始まる箇条書き（記号なし）で1行は30文字(60byte)なのでそれ以下、
+5行目以降に300文字以内で要約してください。
+先頭や文末に～をまとめましたや改行などの情報は不要です。
+
+タイトル: {item['title']}
+記事: {urlBody}""",
             )
             summary = results[0]
             if summary:
@@ -120,10 +126,17 @@ def main(publish=False):
     markdown = convert_news_json_to_markdown(entries_for_json)
 
     results_eval = simple(
-        topic=f"次のまとめた記事を総評してください。先頭や文末に～をまとめましたや```markdown、などの情報は不要です。\n【構成は下記のサンプルを意識してください】\n{note_sample}\n\n【記事】\n{markdown}",
+        topic=f"""次のまとめた記事を総評して1行目に記事のタイトルをキャッチーなアイデアで、以降は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
+先頭や文末に～をまとめましたや```markdown、などの情報は不要です。
+
+【構成は下記のサンプルを意識してください】
+{note_sample}
+
+【記事】
+{markdown}""",
     )
-    markdown += "\n" + results_eval[0]
-    print(markdown)
+    linesEval = [line for line in results_eval[0].split("\n")]
+    markdown = linesEval[0] + "\n" + markdown + "\n" + "\n".join(linesEval[1:])
 
     # markdownをhistory/mdディレクトリに保存
     md_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "history", "md")
