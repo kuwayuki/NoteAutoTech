@@ -30,7 +30,7 @@ MARKDOWN_PATH = os.path.join(
 )
 
 
-async def main(markdown_path=MARKDOWN_PATH, headless=False, publish=False):
+async def main(markdown_path, headless=False, publish=False):
     EMAIL = os.getenv("NOTE_EMAIL")
     PASSWORD = os.getenv("NOTE_PASSWORD")
 
@@ -111,10 +111,33 @@ async def main(markdown_path=MARKDOWN_PATH, headless=False, publish=False):
         await page.keyboard.press("ArrowDown")
         await page.wait_for_timeout(500)
 
-        # クリップボードにbodyをコピーしてペースト
-        await page.evaluate(f"navigator.clipboard.writeText({body!r})")
-        await page.wait_for_timeout(500)
-        await page.keyboard.press("Control+V")
+        # (1) ProseMirror のエディタ領域をクリックしてフォーカス
+        await page.click("div.ProseMirror")
+        await page.wait_for_timeout(100)  # 短いウェイトをはさむ
+
+        # (2) paste イベントを発火させて本文を挿入
+        await page.evaluate(
+            """(text) => {
+            const editor = document.querySelector("div.ProseMirror");
+            if (!editor) {
+                console.error("ProseMirror エディタ要素が見つかりません");
+                return;
+            }
+            editor.focus();
+            // DataTransfer を使って clipboardData を作成
+            const dt = new DataTransfer();
+            dt.setData("text/plain", text);
+            // paste イベントを生成
+            const pasteEvent = new ClipboardEvent("paste", {
+                clipboardData: dt,
+                bubbles: true,
+                cancelable: true
+            });
+            // エディタ要素に dispatch
+            editor.dispatchEvent(pasteEvent);
+            }""",
+            body,
+        )
 
         await page.wait_for_timeout(500)
 
@@ -168,9 +191,7 @@ async def main(markdown_path=MARKDOWN_PATH, headless=False, publish=False):
             await page.click(
                 'input[placeholder="ハッシュタグを追加する"]'
             )  # フォーカスを与える
-            await page.evaluate(f"navigator.clipboard.writeText({hashtags!r})")
-            await page.wait_for_timeout(500)
-            await page.keyboard.press("Control+V")
+            await page.fill('input[placeholder="ハッシュタグを追加する"]', hashtags)
             await page.wait_for_timeout(500)
 
             # 「投稿する」ボタンを押す
@@ -187,5 +208,5 @@ async def main(markdown_path=MARKDOWN_PATH, headless=False, publish=False):
 if __name__ == "__main__":
     import sys
 
-    markdown_path = sys.argv[1] if len(sys.argv) > 1 else "article.md"
+    markdown_path = sys.argv[1] if len(sys.argv) > 1 else MARKDOWN_PATH
     asyncio.run(main(markdown_path))

@@ -11,7 +11,34 @@ from post_note import main as post_note
 from typing import List, Dict
 import asyncio
 import sys
+import random
 
+RANK_LIMIT = 7
+
+# 魚拓シリーズに使える絵文字のリスト
+emoji_list = [
+    "🎣",
+    "🎣",
+    "🎣",
+    "🎣",
+    "🎣",
+    "🎣",  # 釣り多めに
+    "🐟",
+    "🐠",
+    "🦑",
+    "🐡",
+    "🐙",
+    "🦐",
+    "🐳",
+    "🐋",
+    "🪼",  # 拡張：海系＋水中生物
+]
+
+# ランダムに1つ選ぶ
+chosen_emoji = random.choice(emoji_list)
+TEMPLATE_TITLE = (
+    f"# 【{datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}】"
+)
 # noteの心得.mdのパス
 NOTE_KOKOROE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "public", "noteの心得.md"
@@ -20,8 +47,6 @@ NOTE_KOKOROE_PATH = os.path.join(
 NOTE_SAMPLE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "public", "サンプル_footer.md"
 )
-
-RANK_LIMIT = 5
 
 
 def convert_news_json_to_markdown(news_list: List[Dict]) -> str:
@@ -37,7 +62,7 @@ def convert_news_json_to_markdown(news_list: List[Dict]) -> str:
         body += f"""
 ## {item['rank']}. {item['summaryTitle']}
 
-[{item['title']}]({item['url']})
+[引用元：{item['title']}]({item['url']})
 
 **🔍 ポイント要約**:
 **{item['points'][0]}**
@@ -136,7 +161,14 @@ def main(publish=False):
 {markdown}""",
     )
     linesEval = [line for line in results_eval[0].split("\n")]
-    markdown = linesEval[0] + "\n" + markdown + "\n" + "\n".join(linesEval[1:])
+    markdown = (
+        TEMPLATE_TITLE
+        + linesEval[0]
+        + "\n"
+        + markdown
+        + "\n"
+        + "\n".join(linesEval[1:])
+    )
 
     # markdownをhistory/mdディレクトリに保存
     md_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "history", "md")
