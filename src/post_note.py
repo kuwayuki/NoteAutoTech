@@ -3,8 +3,12 @@ import asyncio
 from playwright.async_api import async_playwright
 from dotenv import load_dotenv
 from datetime import datetime
+import urllib.parse
+from utils import simple
 
 load_dotenv()
+EMAIL = os.getenv("NOTE_EMAIL")
+PASSWORD = os.getenv("NOTE_PASSWORD")
 
 
 # Markdownファイルからタイトルと本文を取得
@@ -30,57 +34,106 @@ MARKDOWN_PATH = os.path.join(
 )
 
 
-async def main(markdown_path, headless=False, publish=False):
-    EMAIL = os.getenv("NOTE_EMAIL")
-    PASSWORD = os.getenv("NOTE_PASSWORD")
+async def tweet(page, url, title):
+    # 1. URL取得
+    full_url = url
+    note_url = full_url.split("/edit/")[0].replace(
+        "editor.note.com/notes/", "note.com/lush_chimp5185/n/"
+    )
+
+    # エンコード
+    title_encoded = urllib.parse.quote(title.split("】")[-1].strip())
+    note_url_encoded = urllib.parse.quote(note_url)
+
+    # Twitter投稿用URL
+    twitter_url = f"https://x.com/intent/post?text={title_encoded}&related=note_PR&url={note_url_encoded}"
+
+    # 新しいタブで開く
+    new_page = await page.context.new_page()
+    await new_page.goto(twitter_url)
+    await new_page.wait_for_load_state("load")
+
+    # ログインボタンが出てくるまで待機
+    await new_page.wait_for_selector('button:has-text("ログイン")', timeout=10000)
+    await new_page.click('button:has-text("ログイン")')
+
+    # メールアドレス入力
+    await new_page.wait_for_selector('input[name="text"]', timeout=10000)
+    await new_page.fill('input[name="text"]', EMAIL)
+    await new_page.click('button:has-text("次へ")')
+
+    await new_page.wait_for_selector(
+        'input[data-testid="ocfEnterTextTextInput"]', timeout=10000
+    )
+    await new_page.fill(
+        'input[data-testid="ocfEnterTextTextInput"]', os.getenv("USER_NAME")
+    )
+    await new_page.click('button:has-text("次へ")')
+
+    # パスワード入力
+    await new_page.wait_for_selector('input[name="password"]', timeout=10000)
+    await new_page.fill('input[name="password"]', PASSWORD)
+    await new_page.click('button:has-text("ログイン")')
+
+    # 投稿ボタンが表示されるまで待つ
+    await new_page.wait_for_selector('button[data-testid="tweetButton"]', timeout=10000)
+
+    # ボタンをクリック
+    await new_page.click('button[data-testid="tweetButton"]')
+
+
+async def main(markdown_path, headless=False, publish=True):
 
     title, body, hashtags = parse_markdown(markdown_path)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=headless)
         context = await browser.new_context()
+
         page = await context.new_page()
 
-        # 1. note.comログインページへ
-        await page.goto("https://note.com/login")
+        if True:
 
-        await page.wait_for_timeout(500)
+            # 1. note.comログインページへ
+            await page.goto("https://note.com/login")
 
-        # 2. ログイン
-        await page.fill("#email", EMAIL)
-        await page.fill("#password", PASSWORD)
+            await page.wait_for_timeout(500)
 
-        await page.wait_for_timeout(500)
-        await page.click('button:has-text("ログイン")')
-        await page.wait_for_load_state("networkidle")
+            # 2. ログイン
+            await page.fill("#email", EMAIL)
+            await page.fill("#password", PASSWORD)
 
-        # ログイン後、reCAPTCHAが出ているかチェック
-        await page.wait_for_timeout(1000)
+            await page.wait_for_timeout(500)
+            await page.click('button:has-text("ログイン")')
+            await page.wait_for_load_state("networkidle")
 
-        recaptcha_present = await page.query_selector(
-            'iframe[src*="recaptcha"]'
-        ) or await page.query_selector("text=私はロボットではありません")
+            # ログイン後、reCAPTCHAが出ているかチェック
+            await page.wait_for_timeout(1000)
 
-        if recaptcha_present:
-            print("reCAPTCHAが表示されています。Googleログインで再認証します。")
-            # Googleログインボタンをクリック
-            await page.click('button[aria-label="Google"]')
-            # Googleログイン画面の新しいページ（タブ）を待つ
-            google_page = await context.wait_for_event("page")
-            await google_page.wait_for_load_state()
-            # メールアドレス入力
-            await google_page.wait_for_selector("#identifierId")
-            await google_page.fill("#identifierId", EMAIL)
-            await google_page.click('button:has-text("次へ")')
-            await google_page.wait_for_timeout(1000)
-            # パスワード入力
-            await google_page.wait_for_selector('input[type="password"]')
-            await google_page.fill('input[type="password"]', PASSWORD)
-            await google_page.click('button:has-text("次へ")')
-            await google_page.wait_for_load_state("networkidle")
-            print("Googleログイン完了")
-            # 元のページに戻る
-            await page.bring_to_front()
+            recaptcha_present = await page.query_selector(
+                'iframe[src*="recaptcha"]'
+            ) or await page.query_selector("text=私はロボットではありません")
+
+            if recaptcha_present:
+                print("reCAPTCHAが表示されています。Googleログインで再認証します。")
+                # Googleログインボタンをクリック
+                await page.click('button[aria-label="Google"]')
+                # Googleログイン画面の新しいページ（タブ）を待つ
+                google_page = await context.wait_for_event("page")
+                await google_page.wait_for_load_state()
+                # メールアドレス入力
+                await google_page.wait_for_selector("#identifierId")
+                await google_page.fill("#identifierId", EMAIL)
+                await google_page.click('button:has-text("次へ")')
+                await google_page.wait_for_timeout(1000)
+                # パスワード入力
+                await google_page.wait_for_selector('input[type="password"]')
+                await google_page.fill('input[type="password"]', PASSWORD)
+                await google_page.click('button:has-text("次へ")')
+                await google_page.wait_for_load_state("networkidle")
+                print("Googleログイン完了")
+                # 元のページに戻る
+                await page.bring_to_front()
 
         # 3. 新規投稿ページへ
         await page.goto("https://note.com/notes/new")
@@ -88,6 +141,9 @@ async def main(markdown_path, headless=False, publish=False):
         await page.wait_for_timeout(500)
 
         # 4. タイトル入力
+        url = page.url
+        print(url)
+
         await page.wait_for_selector('textarea[placeholder="記事タイトル"]')
         await page.fill('textarea[placeholder="記事タイトル"]', title)
 
@@ -110,10 +166,6 @@ async def main(markdown_path, headless=False, publish=False):
 
         await page.keyboard.press("ArrowDown")
         await page.wait_for_timeout(500)
-
-        # (1) ProseMirror のエディタ領域をクリックしてフォーカス
-        await page.click("div.ProseMirror")
-        await page.wait_for_timeout(100)  # 短いウェイトをはさむ
 
         # (2) paste イベントを発火させて本文を挿入
         await page.evaluate(
@@ -197,6 +249,15 @@ async def main(markdown_path, headless=False, publish=False):
             # 「投稿する」ボタンを押す
             await page.click('button:has-text("投稿する")')
             print("記事の投稿が完了しました")
+
+            results = simple(
+                topic=f"""記事の内容からtwitterで目を引くような50文字以内の1文のつぶやきにしてください。
+先頭や文末に～をまとめましたや改行などの情報は不要です。
+
+記事: {body}""",
+            )
+            summary = results[0]
+            await tweet(page, url, summary)
         else:
             print("記事の下書きをします")
             await page.click("text=下書き保存")
