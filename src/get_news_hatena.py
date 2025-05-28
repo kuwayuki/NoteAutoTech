@@ -13,7 +13,7 @@ import asyncio
 import sys
 import random
 
-RANK_LIMIT = 7
+RANK_LIMIT = 2
 
 # 魚拓シリーズに使える絵文字のリスト
 emoji_list = [

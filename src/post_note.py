@@ -185,6 +185,13 @@ async def click_random_buttons(
     await page.goto(url)
     await page.wait_for_load_state("load")
     await page.wait_for_timeout(2000)  # ページの描画待ち
+
+    # ページの高さを取得してランダムな位置までスクロール
+    page_height = await page.evaluate("() => document.body.scrollHeight")
+    scroll_to = random.randint(0, int(page_height * 0.8))  # 0～80%の範囲でランダム
+    await page.evaluate(f"window.scrollTo(0, {scroll_to})")
+    await page.wait_for_timeout(1000)  # スクロール後に少し待つ
+
     buttons = await page.query_selector_all(selector)
     if not buttons:
         print(f"{action_name}ボタンが見つかりませんでした")
@@ -195,6 +202,10 @@ async def click_random_buttons(
 
     for i, btn in enumerate(buttons[:count]):
         try:
+            text = await btn.inner_text()
+            if "中" in text:
+                print(f"スキップ: {i+1}個目の{action_name}ボタン（「中」含む）")
+                continue
             await btn.click()
             await page.wait_for_timeout(
                 random.randint(min_wait, max_wait) * wait_multiplier
@@ -224,7 +235,7 @@ async def like_on_note_topic_ai(page, like_count=10, is_suki=True, is_follow=Fal
                 new_page,
                 "https://note.com/search?context=user&q=%E3%83%95%E3%82%A9%E3%83%AD%E3%83%90100&size=10",
                 'button.a-button:has-text("フォロー")',
-                100,
+                like_count,
                 "フォロー",
             )
         except Exception as e:
@@ -242,20 +253,6 @@ async def main(markdown_path, headless=False, publish=False):
         page = await context.new_page()
 
         await login(page, context)
-
-        await like_on_note_topic_ai(page, is_suki=False, is_follow=True)
-        return
-
-        # 3. 新規投稿ページへ
-        # await page.goto("https://editor.note.com/notes/nb79f5c449093/publish/")
-        # # ハッシュタグ入力欄を待つ
-        # await page.wait_for_selector('input[placeholder="ハッシュタグを追加する"]')
-        # await page.click(
-        #     'input[placeholder="ハッシュタグを追加する"]'
-        # )  # フォーカスを与える
-        # await page.fill('input[placeholder="ハッシュタグを追加する"]', hashtags)
-        # print(hashtags)
-        # return
 
         await page.goto("https://note.com/notes/new")
 
@@ -326,8 +323,11 @@ async def main(markdown_path, headless=False, publish=False):
             await page.click(
                 'input[placeholder="ハッシュタグを追加する"]'
             )  # フォーカスを与える
-            await page.fill('input[placeholder="ハッシュタグを追加する"]', hashtags)
-            await page.wait_for_timeout(500)
+            for tag in hashtags.split():
+                if tag:
+                    await page.fill('input[placeholder="ハッシュタグを追加する"]', tag)
+                    await page.keyboard.press("Enter")
+                    await page.wait_for_timeout(200)
 
             # 「投稿する」ボタンを押す
             await wait_and_click(page, "投稿する")
@@ -346,7 +346,7 @@ async def main(markdown_path, headless=False, publish=False):
             await wait_and_click(page, "下書き保存")
             print("記事の下書き保存が完了しました")
 
-        await like_on_note_topic_ai(page, is_suki=True, is_follow=True)
+        await like_on_note_topic_ai(page, like_count=20, is_suki=True, is_follow=True)
         await browser.close()
 
 
