@@ -83,6 +83,50 @@ async def tweet(page, url, title):
     await new_page.click('button[data-testid="tweetButton"]')
 
 
+async def login(page, context):
+
+    # 1. note.comログインページへ
+    await page.goto("https://note.com/login")
+
+    await page.wait_for_timeout(500)
+
+    # 2. ログイン
+    await page.fill("#email", EMAIL)
+    await page.fill("#password", PASSWORD)
+
+    await page.wait_for_timeout(500)
+    await page.click('button:has-text("ログイン")')
+    await page.wait_for_load_state("networkidle")
+
+    # ログイン後、reCAPTCHAが出ているかチェック
+    await page.wait_for_timeout(1000)
+
+    recaptcha_present = await page.query_selector(
+        'iframe[src*="recaptcha"]'
+    ) or await page.query_selector("text=私はロボットではありません")
+
+    if recaptcha_present:
+        print("reCAPTCHAが表示されています。Googleログインで再認証します。")
+        # Googleログインボタンをクリック
+        await page.click('button[aria-label="Google"]')
+        # Googleログイン画面の新しいページ（タブ）を待つ
+        google_page = await context.wait_for_event("page")
+        await google_page.wait_for_load_state()
+        # メールアドレス入力
+        await google_page.wait_for_selector("#identifierId")
+        await google_page.fill("#identifierId", EMAIL)
+        await google_page.click('button:has-text("次へ")')
+        await google_page.wait_for_timeout(1000)
+        # パスワード入力
+        await google_page.wait_for_selector('input[type="password"]')
+        await google_page.fill('input[type="password"]', PASSWORD)
+        await google_page.click('button:has-text("次へ")')
+        await google_page.wait_for_load_state("networkidle")
+        print("Googleログイン完了")
+        # 元のページに戻る
+        await page.bring_to_front()
+
+
 async def wait_and_click(page, button_text, timeout=10000):
     selector = f'button:has-text("{button_text}")'
     await page.wait_for_selector(selector, timeout=timeout)
@@ -128,53 +172,61 @@ async def select_image_add(page):
         print("画像が見つかりませんでした")
 
 
+async def click_random_buttons(
+    page,
+    url,
+    selector,
+    count,
+    action_name,
+    min_wait=1,
+    max_wait=10,
+    wait_multiplier=500,
+):
+    await page.goto(url)
+    await page.wait_for_load_state("load")
+    await page.wait_for_timeout(2000)  # ページの描画待ち
+    buttons = await page.query_selector_all(selector)
+    if not buttons:
+        print(f"{action_name}ボタンが見つかりませんでした")
+        return
+
+    random.shuffle(buttons)
+    count = min(count, len(buttons))
+
+    for i, btn in enumerate(buttons[:count]):
+        try:
+            await btn.click()
+            await page.wait_for_timeout(
+                random.randint(min_wait, max_wait) * wait_multiplier
+            )
+            print(f"{i+1}個目の{action_name}ボタンをクリックしました")
+        except Exception as e:
+            print(f"{i+1}個目の{action_name}ボタンでエラー: {e}")
+
+    print(f"{count}個の{action_name}を押しました")
+
+
 async def like_on_note_topic_ai(page, like_count=10, is_suki=True, is_follow=False):
-    """
-    https://note.com/topic/ai を新しいタブで開き、スキボタンを10個自動で押す
-    """
     new_page = await page.context.new_page()
-    # await new_page.goto("https://note.com/topic/it")
-    await new_page.goto("https://note.com/topic/ai")
-    await new_page.wait_for_load_state("load")
-    await new_page.wait_for_timeout(2000)  # ページの描画待ち
 
     if is_suki:
-        # 10個の「スキ」ボタンを取得
-        like_buttons = await new_page.query_selector_all('button[aria-label="スキ"]')
-        random.shuffle(like_buttons)  # ボタンの順番をランダムに
-        count = min(like_count, len(like_buttons))
-        for i, btn in enumerate(like_buttons[:count]):
-            try:
-                await btn.click()
-                await new_page.wait_for_timeout(
-                    random.randint(1, 10) * 500
-                )  # 50msの倍数でランダムな待機時間
-            except Exception as e:
-                print(f"{i+1}個目のスキボタンでエラー: {e}")
-        print(f"{count}個のスキを押しました")
+        await click_random_buttons(
+            new_page,
+            "https://note.com/topic/ai",
+            'button[aria-label="スキ"]',
+            like_count,
+            "スキ",
+        )
 
     if is_follow:
         try:
-            # フォローボタンを取得
-            await new_page.goto(
-                "https://note.com/search?context=user&q=%E3%83%95%E3%82%A9%E3%83%AD%E3%83%90100&size=10"
+            await click_random_buttons(
+                new_page,
+                "https://note.com/search?context=user&q=%E3%83%95%E3%82%A9%E3%83%AD%E3%83%90100&size=10",
+                'button.a-button:has-text("フォロー")',
+                100,
+                "フォロー",
             )
-            follow_buttons = await new_page.query_selector_all(
-                'button.a-button:has-text("フォロー")'
-            )
-            if follow_buttons:
-                # ランダムにlike_count個のフォローボタンを選択してクリック
-                random_buttons = random.sample(
-                    follow_buttons, min(like_count, len(follow_buttons))
-                )
-                for i, button in enumerate(random_buttons):
-                    await button.click()
-                    print(f"{i+1}個目のフォローボタンをクリックしました")
-                    await new_page.wait_for_timeout(
-                        random.randint(1, 3) * 1000
-                    )  # 1-3秒のランダムな待機
-            else:
-                print("フォローボタンが見つかりませんでした")
         except Exception as e:
             print(f"フォローボタンクリックでエラー: {e}")
 
@@ -189,48 +241,10 @@ async def main(markdown_path, headless=False, publish=False):
 
         page = await context.new_page()
 
-        if True:
+        await login(page, context)
 
-            # 1. note.comログインページへ
-            await page.goto("https://note.com/login")
-
-            await page.wait_for_timeout(500)
-
-            # 2. ログイン
-            await page.fill("#email", EMAIL)
-            await page.fill("#password", PASSWORD)
-
-            await page.wait_for_timeout(500)
-            await page.click('button:has-text("ログイン")')
-            await page.wait_for_load_state("networkidle")
-
-            # ログイン後、reCAPTCHAが出ているかチェック
-            await page.wait_for_timeout(1000)
-
-            recaptcha_present = await page.query_selector(
-                'iframe[src*="recaptcha"]'
-            ) or await page.query_selector("text=私はロボットではありません")
-
-            if recaptcha_present:
-                print("reCAPTCHAが表示されています。Googleログインで再認証します。")
-                # Googleログインボタンをクリック
-                await page.click('button[aria-label="Google"]')
-                # Googleログイン画面の新しいページ（タブ）を待つ
-                google_page = await context.wait_for_event("page")
-                await google_page.wait_for_load_state()
-                # メールアドレス入力
-                await google_page.wait_for_selector("#identifierId")
-                await google_page.fill("#identifierId", EMAIL)
-                await google_page.click('button:has-text("次へ")')
-                await google_page.wait_for_timeout(1000)
-                # パスワード入力
-                await google_page.wait_for_selector('input[type="password"]')
-                await google_page.fill('input[type="password"]', PASSWORD)
-                await google_page.click('button:has-text("次へ")')
-                await google_page.wait_for_load_state("networkidle")
-                print("Googleログイン完了")
-                # 元のページに戻る
-                await page.bring_to_front()
+        await like_on_note_topic_ai(page, is_suki=False, is_follow=True)
+        return
 
         # 3. 新規投稿ページへ
         # await page.goto("https://editor.note.com/notes/nb79f5c449093/publish/")
