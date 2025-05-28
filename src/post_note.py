@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import urllib.parse
 from utils import simple
+import random
 
 load_dotenv()
 EMAIL = os.getenv("NOTE_EMAIL")
@@ -106,8 +107,6 @@ async def select_image_add(page):
     image_elements = await page.query_selector_all(".sc-639f8778-2.djbaCR")
     if image_elements:
         # ランダムに1つの画像を選択
-        import random
-
         random_image = random.choice(image_elements)
         await random_image.click()
         await page.wait_for_timeout(1000)
@@ -127,6 +126,45 @@ async def select_image_add(page):
             print("保存ボタンが見つかりませんでした")
     else:
         print("画像が見つかりませんでした")
+
+
+async def like_on_note_topic_ai(page, like_count=5, is_suki=True, is_follow=False):
+    """
+    https://note.com/topic/ai を新しいタブで開き、スキボタンを10個自動で押す
+    """
+    new_page = await page.context.new_page()
+    # await new_page.goto("https://note.com/topic/it")
+    await new_page.goto("https://note.com/topic/ai")
+    await new_page.wait_for_load_state("load")
+    await new_page.wait_for_timeout(2000)  # ページの描画待ち
+
+    if is_suki:
+        # 10個の「スキ」ボタンを取得
+        like_buttons = await new_page.query_selector_all('button[aria-label="スキ"]')
+        random.shuffle(like_buttons)  # ボタンの順番をランダムに
+        count = min(like_count, len(like_buttons))
+        for i, btn in enumerate(like_buttons[:count]):
+            try:
+                await btn.click()
+                await new_page.wait_for_timeout(
+                    random.randint(1, 10) * 500
+                )  # 50msの倍数でランダムな待機時間
+            except Exception as e:
+                print(f"{i+1}個目のスキボタンでエラー: {e}")
+        print(f"{count}個のスキを押しました")
+
+    if is_follow:
+        # 最後にランダムなアバター画像をクリック
+        try:
+            avatar_imgs = await new_page.query_selector_all("img.m-avatar__image")
+            if avatar_imgs:
+                img = random.choice(avatar_imgs)
+                await img.click()
+                print("ランダムなアバター画像をクリックしました")
+            else:
+                print("アバター画像が見つかりませんでした")
+        except Exception as e:
+            print(f"アバター画像クリックでエラー: {e}")
 
 
 async def main(markdown_path, headless=False, publish=False):
@@ -272,6 +310,7 @@ async def main(markdown_path, headless=False, publish=False):
             await wait_and_click(page, "下書き保存")
             print("記事の下書き保存が完了しました")
 
+        await like_on_note_topic_ai(page, is_suki=True, is_follow=False)
         await browser.close()
 
 
