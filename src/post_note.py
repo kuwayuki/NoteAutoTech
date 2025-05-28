@@ -128,7 +128,7 @@ async def select_image_add(page):
         print("画像が見つかりませんでした")
 
 
-async def like_on_note_topic_ai(page, like_count=5, is_suki=True, is_follow=False):
+async def like_on_note_topic_ai(page, like_count=10, is_suki=True, is_follow=False):
     """
     https://note.com/topic/ai を新しいタブで開き、スキボタンを10個自動で押す
     """
@@ -154,17 +154,29 @@ async def like_on_note_topic_ai(page, like_count=5, is_suki=True, is_follow=Fals
         print(f"{count}個のスキを押しました")
 
     if is_follow:
-        # 最後にランダムなアバター画像をクリック
         try:
-            avatar_imgs = await new_page.query_selector_all("img.m-avatar__image")
-            if avatar_imgs:
-                img = random.choice(avatar_imgs)
-                await img.click()
-                print("ランダムなアバター画像をクリックしました")
+            # フォローボタンを取得
+            await new_page.goto(
+                "https://note.com/search?context=user&q=%E3%83%95%E3%82%A9%E3%83%AD%E3%83%90100&size=10"
+            )
+            follow_buttons = await new_page.query_selector_all(
+                'button.a-button:has-text("フォロー")'
+            )
+            if follow_buttons:
+                # ランダムにlike_count個のフォローボタンを選択してクリック
+                random_buttons = random.sample(
+                    follow_buttons, min(like_count, len(follow_buttons))
+                )
+                for i, button in enumerate(random_buttons):
+                    await button.click()
+                    print(f"{i+1}個目のフォローボタンをクリックしました")
+                    await new_page.wait_for_timeout(
+                        random.randint(1, 3) * 1000
+                    )  # 1-3秒のランダムな待機
             else:
-                print("アバター画像が見つかりませんでした")
+                print("フォローボタンが見つかりませんでした")
         except Exception as e:
-            print(f"アバター画像クリックでエラー: {e}")
+            print(f"フォローボタンクリックでエラー: {e}")
 
 
 async def main(markdown_path, headless=False, publish=False):
@@ -221,6 +233,16 @@ async def main(markdown_path, headless=False, publish=False):
                 await page.bring_to_front()
 
         # 3. 新規投稿ページへ
+        # await page.goto("https://editor.note.com/notes/nb79f5c449093/publish/")
+        # # ハッシュタグ入力欄を待つ
+        # await page.wait_for_selector('input[placeholder="ハッシュタグを追加する"]')
+        # await page.click(
+        #     'input[placeholder="ハッシュタグを追加する"]'
+        # )  # フォーカスを与える
+        # await page.fill('input[placeholder="ハッシュタグを追加する"]', hashtags)
+        # print(hashtags)
+        # return
+
         await page.goto("https://note.com/notes/new")
 
         await page.wait_for_timeout(500)
@@ -310,7 +332,7 @@ async def main(markdown_path, headless=False, publish=False):
             await wait_and_click(page, "下書き保存")
             print("記事の下書き保存が完了しました")
 
-        await like_on_note_topic_ai(page, is_suki=True, is_follow=False)
+        await like_on_note_topic_ai(page, is_suki=True, is_follow=True)
         await browser.close()
 
 
