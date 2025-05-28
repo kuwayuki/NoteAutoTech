@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from hatena_scraper import fetch_hatena_news_entries, fetch_article_content_from_url
 from history_manager import (
     load_history,
@@ -37,7 +37,8 @@ emoji_list = [
 # ランダムに1つ選ぶ
 chosen_emoji = random.choice(emoji_list)
 TEMPLATE_TITLE = (
-    f"# 【{datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}】"
+    f"### {datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}|"
+    # f"# 【{datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}】"
 )
 # noteの心得.mdのパス
 NOTE_KOKOROE_PATH = os.path.join(
@@ -49,32 +50,57 @@ NOTE_SAMPLE_PATH = os.path.join(
 )
 
 
+SMALL = "$${{\\footnotesize"
+SMALL_END = "}}$$"
+
+
 def convert_news_json_to_markdown(news_list: List[Dict]) -> str:
     now = datetime.now()
     header = f"""
-🗓️ 編集者コメント：
-話題の中から、「実務に役立つ」「未来に影響を与えそうな技術」にフォーカスして、毎日数本をAIが要約します。単なるトレンド紹介ではなく、実務者目線での要点整理と解釈を加えています。
+🗓️編集者コメント：トレンドから業務に役立つIT技術にフォーカスしてAIが毎日要約してお知らせ
 
 ---
 """
     body = ""
     for item in news_list:
         body += f"""
-## {item['rank']}. {item['summaryTitle']}
+### {item['rank']}. {item['summaryTitle']}
 
-[引用元：{item['title']}]({item['url']})
+{item['points'][0]}
+{item['points'][1]}
+{item['points'][2]}
 
-**🔍 ポイント要約**:
-**{item['points'][0]}**
-**{item['points'][1]}**
-**{item['points'][2]}**
+[引用元：{item['title']}（{item['users']} USERS）]({item['url']})
 
 > {item['summary']}
 
 ---
 """
+    ### [{item['rank']}. {item['summaryTitle']}]({item['url']})
 
     return header + body
+
+
+def get_sunday(date: datetime) -> datetime:
+    """指定日付の週の日曜日を返す"""
+    return date - timedelta(days=date.weekday() + 1) if date.weekday() != 6 else date
+
+
+def load_titles_from_weekly_txt(txt_path: str) -> set:
+    if not os.path.exists(txt_path):
+        return set()
+    with open(txt_path, encoding="utf-8") as f:
+        return set(line.strip() for line in f if line.strip())
+
+
+def save_titles_to_weekly_txt(txt_path: str, titles: list):
+    os.makedirs(os.path.dirname(txt_path), exist_ok=True)
+    # 既存のタイトルも考慮して重複しないように追記
+    existing = load_titles_from_weekly_txt(txt_path)
+    with open(txt_path, "a", encoding="utf-8") as f:
+        for title in titles:
+            if title not in existing:
+                f.write(title + "\n")
 
 
 def main(publish=False):
@@ -91,11 +117,28 @@ def main(publish=False):
         history_dir, f"history_{now.year}_{now.month:02d}_{now.day:02d}.txt"
     )
 
+    # 週ごとのタイトル記録ファイルパスを決定
+    sunday = get_sunday(now)
+    weekly_txt_dir = os.path.join(
+        history_dir, "txt", f"{sunday.year}_{sunday.month:02d}_{sunday.day:02d}"
+    )
+    os.makedirs(weekly_txt_dir, exist_ok=True)
+    weekly_txt_path = os.path.join(weekly_txt_dir, "titles.txt")
+    recorded_titles = load_titles_from_weekly_txt(weekly_txt_path)
+
     history = load_history(history_filename)
-    top_entries = [item for item in entries if item["title"] not in history][:20]
-    news_titles_text = ""
-    for idx, item in enumerate(top_entries):
-        news_titles_text += f"{idx+1}. {item['title']} ({item['date']}) {item['users']} USERS\n{item['url']}\n\n"
+    # 週ごとの記録済タイトルも除外条件に追加
+    top_entries = [
+        item
+        for item in entries
+        if item["title"] not in history and item["title"] not in recorded_titles
+    ][:30]
+
+    # top_entriesをトップ7に絞り込む
+    top_entries = top_entries[:RANK_LIMIT]
+
+    # top_entriesのタイトルを週ごとのtxtに記録
+    save_titles_to_weekly_txt(weekly_txt_path, [item["title"] for item in top_entries])
 
     # rank, usersも含めてjson保存（usersはint型で保存）
     json_dir = os.path.join(
@@ -113,7 +156,7 @@ def main(publish=False):
         # print(note_kokoroe)
     with open(NOTE_SAMPLE_PATH, encoding="utf-8") as f:
         note_sample = f.read()
-    for idx, item in enumerate(entries):
+    for idx, item in enumerate(top_entries):
         try:
             users_num = int(item["users"].replace(",", "")) if item["users"] else 0
         except Exception:
@@ -126,13 +169,13 @@ def main(publish=False):
         }
 
         summary = ""
-        if idx < RANK_LIMIT and item["url"]:
+        if item["url"]:
             urlBody = fetch_article_content_from_url(item["url"])
             results = simple(
                 topic=f"""あなたはプロのライターです。
 タイトルから記事で一番伝えたい部分を考察し、
 1行目に自分なりのタイトルを先頭に絵文字付きで20文字程度で、
-2~4行目の3行に・から始まる箇条書き（記号なし）で1行は30文字(60byte)なのでそれ以下、
+2~4行目の3行に・から始まる箇条書き（記号なし）で1行は40文字(80byte)なのでそれ以下、
 5行目以降に300文字以内で要約してください。
 先頭や文末に～をまとめましたや改行などの情報は不要です。
 
@@ -145,8 +188,8 @@ def main(publish=False):
                 entry["summaryTitle"] = lines[0]
                 entry["points"] = lines[1:4]
                 entry["summary"] = "\n".join(lines[4:]).strip()
-        if idx < RANK_LIMIT:
-            entries_for_json.append(entry)
+
+        entries_for_json.append(entry)
     save_history_json(json_filename, entries_for_json)
     markdown = convert_news_json_to_markdown(entries_for_json)
 

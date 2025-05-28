@@ -82,7 +82,54 @@ async def tweet(page, url, title):
     await new_page.click('button[data-testid="tweetButton"]')
 
 
-async def main(markdown_path, headless=False, publish=True):
+async def wait_and_click(page, button_text, timeout=10000):
+    selector = f'button:has-text("{button_text}")'
+    await page.wait_for_selector(selector, timeout=timeout)
+    await page.click(selector)
+    await page.wait_for_timeout(1000)
+
+
+async def select_image_add(page):
+    # 画像追加ボタンをクリック
+    await page.click('button[aria-label="画像を追加"]')
+    await page.wait_for_timeout(500)
+
+    # 「記事にあう画像を選ぶ」をクリック
+    await page.click('button:has-text("記事にあう画像を選ぶ")')
+    await page.wait_for_timeout(1000)
+
+    # 画像グリッドからランダムに1つ選択
+    # 画像が表示されるまで待機
+    await page.wait_for_selector(".sc-639f8778-2.djbaCR", timeout=10000)
+    await page.wait_for_timeout(2000)  # 追加の待機時間
+
+    image_elements = await page.query_selector_all(".sc-639f8778-2.djbaCR")
+    if image_elements:
+        # ランダムに1つの画像を選択
+        import random
+
+        random_image = random.choice(image_elements)
+        await random_image.click()
+        await page.wait_for_timeout(1000)
+
+        # 「この画像を挿入」ボタンをクリック
+        await page.click('button:has-text("この画像を挿入")')
+        await page.wait_for_timeout(3000)
+
+        # モーダル内の保存ボタンを明示的に取得してクリック
+        modal = await page.wait_for_selector('div[role="dialog"]', timeout=5000)
+        save_button = await modal.query_selector('button:has-text("保存")')
+        if save_button:
+            await save_button.scroll_into_view_if_needed()
+            await save_button.click()
+            await page.wait_for_timeout(20000)
+        else:
+            print("保存ボタンが見つかりませんでした")
+    else:
+        print("画像が見つかりませんでした")
+
+
+async def main(markdown_path, headless=False, publish=False):
 
     title, body, hashtags = parse_markdown(markdown_path)
 
@@ -191,52 +238,14 @@ async def main(markdown_path, headless=False, publish=True):
             body,
         )
 
-        await page.wait_for_timeout(500)
-
-        # 画像追加ボタンをクリック
-        await page.click('button[aria-label="画像を追加"]')
-        await page.wait_for_timeout(500)
-
-        # 「記事にあう画像を選ぶ」をクリック
-        await page.click('button:has-text("記事にあう画像を選ぶ")')
-        await page.wait_for_timeout(1000)
-
-        # 画像グリッドからランダムに1つ選択
-        # 画像が表示されるまで待機
-        await page.wait_for_selector(".sc-639f8778-2.djbaCR", timeout=10000)
-        await page.wait_for_timeout(2000)  # 追加の待機時間
-
-        image_elements = await page.query_selector_all(".sc-639f8778-2.djbaCR")
-        if image_elements:
-            # ランダムに1つの画像を選択
-            import random
-
-            random_image = random.choice(image_elements)
-            await random_image.click()
-            await page.wait_for_timeout(1000)
-
-            # 「この画像を挿入」ボタンをクリック
-            await page.click('button:has-text("この画像を挿入")')
-            await page.wait_for_timeout(3000)
-
-            # モーダル内の保存ボタンを明示的に取得してクリック
-            modal = await page.wait_for_selector('div[role="dialog"]', timeout=5000)
-            save_button = await modal.query_selector('button:has-text("保存")')
-            if save_button:
-                await save_button.scroll_into_view_if_needed()
-                await save_button.click()
-                await page.wait_for_timeout(20000)
-            else:
-                print("保存ボタンが見つかりませんでした")
-        else:
-            print("画像が見つかりませんでした")
-
         # 6. 下書き保存 or 公開
         if publish:
+            await page.wait_for_timeout(500)
+            await select_image_add(page)
+
             print("記事の投稿をします")
             # 「公開に進む」ボタンを押す
-            await page.click("text=公開に進む")
-            await page.wait_for_timeout(1000)
+            await wait_and_click(page, "公開に進む")
 
             # ハッシュタグ入力欄を待つ
             await page.wait_for_selector('input[placeholder="ハッシュタグを追加する"]')
@@ -247,7 +256,7 @@ async def main(markdown_path, headless=False, publish=True):
             await page.wait_for_timeout(500)
 
             # 「投稿する」ボタンを押す
-            await page.click('button:has-text("投稿する")')
+            await wait_and_click(page, "投稿する")
             print("記事の投稿が完了しました")
 
             results = simple(
@@ -260,7 +269,7 @@ async def main(markdown_path, headless=False, publish=True):
             await tweet(page, url, summary)
         else:
             print("記事の下書きをします")
-            await page.click("text=下書き保存")
+            await wait_and_click(page, "下書き保存")
             print("記事の下書き保存が完了しました")
 
         await browser.close()
