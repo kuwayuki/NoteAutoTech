@@ -186,63 +186,96 @@ async def click_random_buttons(
     await page.wait_for_load_state("load")
     await page.wait_for_timeout(2000)  # ページの描画待ち
 
-    # ページの高さを取得してランダムな位置までスクロール
-    page_height = await page.evaluate("() => document.body.scrollHeight")
-    scroll_to = random.randint(0, int(page_height * 0.8))  # 0～80%の範囲でランダム
-    await page.evaluate(f"window.scrollTo(0, {scroll_to})")
-    await page.wait_for_timeout(1000)  # スクロール後に少し待つ
+    clicked = 0
+    roop_count = 0
 
-    buttons = await page.query_selector_all(selector)
-    if not buttons:
-        print(f"{action_name}ボタンが見つかりませんでした")
-        return
+    while clicked < count:
+        buttons = []
+        for btn in await page.query_selector_all(selector):
+            try:
+                text = await btn.inner_text()
+                aria_label = (await btn.get_attribute("aria-label")) or ""
+                if "中" not in text and "取り消す" not in aria_label:
+                    buttons.append(btn)
+            except Exception as e:
+                print(f"ボタン確認中にエラー: {e}")
 
-    random.shuffle(buttons)
-    count = min(count, len(buttons))
+        random.shuffle(buttons)
+        found_clickable = False
 
-    for i, btn in enumerate(buttons[:count]):
-        try:
-            text = await btn.inner_text()
-            if "中" in text:
-                print(f"スキップ: {i+1}個目の{action_name}ボタン（「中」含む）")
-                continue
-            await btn.click()
-            await page.wait_for_timeout(
-                random.randint(min_wait, max_wait) * wait_multiplier
-            )
-            print(f"{i+1}個目の{action_name}ボタンをクリックしました")
-        except Exception as e:
-            print(f"{i+1}個目の{action_name}ボタンでエラー: {e}")
+        for btn in buttons:
 
-    print(f"{count}個の{action_name}を押しました")
+            try:
+                text = await btn.inner_text()
+                if "中" in text:
+                    print(
+                        f"スキップ: {clicked+1}個目の{action_name}ボタン（「中」含む）"
+                    )
+                    continue
+                await btn.click()
+                await page.wait_for_timeout(
+                    random.randint(min_wait, max_wait) * wait_multiplier
+                )
+                print(f"{clicked+1}個目の{action_name}ボタンをクリックしました")
+                clicked += 1
+                found_clickable = True
+                if clicked >= count:
+                    break
+            except Exception as e:
+                print(f"{clicked+1}個目の{action_name}ボタンでエラー: {e}")
+
+        if not found_clickable:
+            print(f"再取得します")
+            # スクロールして再取得
+            page_height = await page.evaluate("() => document.body.scrollHeight")
+            scroll_to = random.randint(0, int(page_height * 0.8))
+            await page.evaluate(f"window.scrollTo(0, {scroll_to})")
+            await page.wait_for_timeout(1000)
+            roop_count += 1
+            if roop_count > 10:
+                break
+            # ループ継続
+        else:
+            await page.wait_for_timeout(500)
+
+    print(f"{clicked}個の{action_name}を押しました")
 
 
 async def like_on_note_topic_ai(page, like_count=10, is_suki=True, is_follow=False):
-    new_page = await page.context.new_page()
-
+    tasks = []
     if is_suki:
-        await click_random_buttons(
-            new_page,
-            "https://note.com/topic/ai",
-            'button[aria-label="スキ"]',
-            like_count,
-            "スキ",
+        new_page_suki = await page.context.new_page()
+        tasks.append(
+            asyncio.create_task(
+                click_random_buttons(
+                    new_page_suki,
+                    "https://note.com/",
+                    'button[aria-label="スキ"]',
+                    like_count,
+                    "スキ",
+                )
+            )
         )
 
     if is_follow:
-        try:
-            await click_random_buttons(
-                new_page,
-                "https://note.com/search?context=user&q=%E3%83%95%E3%82%A9%E3%83%AD%E3%83%90100&size=10",
-                'button.a-button:has-text("フォロー")',
-                like_count,
-                "フォロー",
+        new_page_follow = await page.context.new_page()
+        tasks.append(
+            asyncio.create_task(
+                click_random_buttons(
+                    new_page_follow,
+                    "https://note.com/search?context=user&q=IT&size=10",
+                    'button.a-button:has-text("フォロー")',
+                    like_count,
+                    "フォロー",
+                )
             )
-        except Exception as e:
-            print(f"フォローボタンクリックでエラー: {e}")
+        )
+
+    if tasks:
+        await asyncio.gather(*tasks)
 
 
-async def main(markdown_path, headless=False, publish=False):
+async def main(markdown_path, headless=False, publish=True):
 
     title, body, hashtags = parse_markdown(markdown_path)
 
@@ -253,6 +286,8 @@ async def main(markdown_path, headless=False, publish=False):
         page = await context.new_page()
 
         await login(page, context)
+        # await like_on_note_topic_ai(page, like_count=20, is_suki=False, is_follow=True)
+        # return
 
         await page.goto("https://note.com/notes/new")
 

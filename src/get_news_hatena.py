@@ -13,10 +13,14 @@ import asyncio
 import sys
 import random
 
-RANK_LIMIT = 2
+RANK_LIMIT = 5
 
 # 魚拓シリーズに使える絵文字のリスト
 emoji_list = [
+    "🎣",
+    "🎣",
+    "🎣",
+    "🎣",
     "🎣",
     "🎣",
     "🎣",
@@ -30,7 +34,6 @@ emoji_list = [
     "🐙",
     "🦐",
     "🐳",
-    "🐋",
     "🪼",  # 拡張：海系＋水中生物
 ]
 
@@ -103,7 +106,7 @@ def save_titles_to_weekly_txt(txt_path: str, titles: list):
                 f.write(title + "\n")
 
 
-def main(publish=False):
+def main(publish=True):
     entries = fetch_hatena_news_entries()
     if not entries:
         print("エントリーが見つかりませんでした。セレクタを確認してください。")
