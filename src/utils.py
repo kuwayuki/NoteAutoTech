@@ -170,6 +170,11 @@ def get_chain(
     return create_chain(llm_instance, prompt_str, output_key)
 
 
+def question(topic: str, provider: str = None, model: str = None):
+    results = simple(topic, provider, model)
+    return results[0]
+
+
 ########################################
 # 0. シンプル
 ########################################

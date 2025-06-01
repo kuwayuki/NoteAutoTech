@@ -4,8 +4,13 @@ from playwright.async_api import async_playwright
 from dotenv import load_dotenv
 from datetime import datetime
 import urllib.parse
-from utils import simple
+from utils import simple, question
 import random
+import sys
+import re
+from screeninfo import get_monitors
+
+RANK_LIMIT = 3
 
 load_dotenv()
 EMAIL = os.getenv("NOTE_EMAIL")
@@ -241,17 +246,23 @@ async def click_random_buttons(
     print(f"{clicked}個の{action_name}を押しました")
 
 
-async def like_on_note_topic_ai(page, like_count=10, is_suki=True, is_follow=False):
+async def like_on_note_topic_ai(
+    page, like_count=RANK_LIMIT * 3, is_suki=True, is_follow=False
+):
     tasks = []
+    search_word = random_search_word()
+    encoded_search = urllib.parse.quote(search_word)
+
     if is_suki:
         new_page_suki = await page.context.new_page()
         tasks.append(
             asyncio.create_task(
                 click_random_buttons(
                     new_page_suki,
-                    "https://note.com/",
+                    # "https://note.com/",
+                    f"https://note.com/search?q={encoded_search}&context=note&mode=search",
                     'button[aria-label="スキ"]',
-                    like_count,
+                    like_count * 3,
                     "スキ",
                 )
             )
@@ -263,7 +274,8 @@ async def like_on_note_topic_ai(page, like_count=10, is_suki=True, is_follow=Fal
             asyncio.create_task(
                 click_random_buttons(
                     new_page_follow,
-                    "https://note.com/search?context=user&q=IT&size=10",
+                    # "https://note.com/search?context=user&q=IT&size=10",
+                    f"https://note.com/search?context=user&q={encoded_search}&size=10",
                     'button.a-button:has-text("フォロー")',
                     like_count,
                     "フォロー",
@@ -275,18 +287,23 @@ async def like_on_note_topic_ai(page, like_count=10, is_suki=True, is_follow=Fal
         await asyncio.gather(*tasks)
 
 
-async def main(markdown_path, headless=False, publish=True):
+async def main(markdown_path, headless=False, publish=False):
 
     title, body, hashtags = parse_markdown(markdown_path)
 
     async with async_playwright() as p:
+        # browser = await p.chromium.launch(headless=headless, args=["--start-maximized"])
+        # primary_monitor = get_monitors()[0]  # プライマリモニターを取得
+        # context = await browser.new_context(
+        #     viewport={"width": primary_monitor.width, "height": primary_monitor.height}
+        # )
+
         browser = await p.chromium.launch(headless=headless)
         context = await browser.new_context()
-
         page = await context.new_page()
 
         await login(page, context)
-        # await like_on_note_topic_ai(page, like_count=20, is_suki=False, is_follow=True)
+        # await like_on_note_topic_ai(page, is_suki=True, is_follow=False)
         # return
 
         await page.goto("https://note.com/notes/new")
@@ -381,12 +398,27 @@ async def main(markdown_path, headless=False, publish=True):
             await wait_and_click(page, "下書き保存")
             print("記事の下書き保存が完了しました")
 
-        await like_on_note_topic_ai(page, like_count=20, is_suki=True, is_follow=True)
+        await like_on_note_topic_ai(page, is_suki=True, is_follow=True)
         await browser.close()
 
 
-if __name__ == "__main__":
-    import sys
+def random_search_word():
+    try:
+        search_word = question(
+            "IT関連において、ユーザーを探すためのキーワードを配列のみ教えてください。回答例：['IT', 'React', 'フロントエンド', ...]"
+        )
 
+        # シングルクォーテーションで囲まれた文字列を抽出
+        pattern = r"'([^']*)'"
+        search_words = re.findall(pattern, search_word)
+        search_word = random.choice(search_words)
+    except Exception:
+        search_word = "IT"
+    print(f"Selected search word: {search_word}")
+
+    return search_word
+
+
+if __name__ == "__main__":
     markdown_path = sys.argv[1] if len(sys.argv) > 1 else MARKDOWN_PATH
     asyncio.run(main(markdown_path))

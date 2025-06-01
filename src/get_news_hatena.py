@@ -8,12 +8,12 @@ from history_manager import (
 )
 from utils import simple
 from post_note import main as post_note
+from post_note import RANK_LIMIT
 from typing import List, Dict
 import asyncio
 import sys
 import random
 
-RANK_LIMIT = 5
 
 # 魚拓シリーズに使える絵文字のリスト
 emoji_list = [
@@ -40,7 +40,8 @@ emoji_list = [
 # ランダムに1つ選ぶ
 chosen_emoji = random.choice(emoji_list)
 TEMPLATE_TITLE = (
-    f"### {datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}|"
+    f""
+    # f"### {datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}｜"
     # f"# 【{datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}】"
 )
 # noteの心得.mdのパス
@@ -197,7 +198,8 @@ def main(publish=True):
     markdown = convert_news_json_to_markdown(entries_for_json)
 
     results_eval = simple(
-        topic=f"""次のまとめた記事を総評して1行目に記事のタイトルをキャッチーなアイデアで、以降は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
+        # topic=f"""次のまとめた記事を総評して1行目に記事のタイトルをキャッチーなアイデアで、以降は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
+        topic=f"""次のまとめた記事を総評して記事のタイトルをキャッチーなアイデアで、以降は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
 先頭や文末に～をまとめましたや```markdown、などの情報は不要です。
 
 【構成は下記のサンプルを意識してください】
