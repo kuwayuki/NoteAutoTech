@@ -246,9 +246,7 @@ async def click_random_buttons(
     print(f"{clicked}個の{action_name}を押しました")
 
 
-async def like_on_note_topic_ai(
-    page, like_count=RANK_LIMIT * 3, is_suki=True, is_follow=False
-):
+async def like_on_note_topic_ai(page, is_suki=True, is_follow=False):
     tasks = []
     search_word = random_search_word()
     encoded_search = urllib.parse.quote(search_word)
@@ -262,7 +260,7 @@ async def like_on_note_topic_ai(
                     # "https://note.com/",
                     f"https://note.com/search?q={encoded_search}&context=note&mode=search",
                     'button[aria-label="スキ"]',
-                    like_count * 3,
+                    23,
                     "スキ",
                 )
             )
@@ -277,7 +275,7 @@ async def like_on_note_topic_ai(
                     # "https://note.com/search?context=user&q=IT&size=10",
                     f"https://note.com/search?context=user&q={encoded_search}&size=10",
                     'button.a-button:has-text("フォロー")',
-                    like_count,
+                    13,
                     "フォロー",
                 )
             )
@@ -361,6 +359,30 @@ async def main(markdown_path, headless=False, publish=False):
             body,
         )
 
+        await page.wait_for_timeout(1000)
+
+        # 貼り付けられたリンクを全て取得
+        link_elements = await page.query_selector_all('div.ProseMirror a[href^="http"]')
+
+        for link in link_elements:
+            # 親要素（段落ブロック）を取得
+            parent = await link.evaluate_handle("el => el.closest('p, div, li')")
+
+            # 親要素が取得できたらクリック
+            if parent:
+                await parent.click()
+                await page.wait_for_timeout(300)
+
+                # 行末に移動（Endキー）
+                await page.keyboard.press("End")
+                await page.wait_for_timeout(200)
+
+                # Enterキー → Deleteキー
+                await page.keyboard.press("Enter")
+                await page.wait_for_timeout(200)
+                await page.keyboard.press("Delete")
+                await page.wait_for_timeout(300)
+
         # 6. 下書き保存 or 公開
         if publish:
             await page.wait_for_timeout(500)
@@ -393,12 +415,12 @@ async def main(markdown_path, headless=False, publish=False):
             )
             summary = results[0]
             await tweet(page, url, summary)
+            await like_on_note_topic_ai(page, is_suki=True, is_follow=True)
         else:
             print("記事の下書きをします")
             await wait_and_click(page, "下書き保存")
             print("記事の下書き保存が完了しました")
 
-        await like_on_note_topic_ai(page, is_suki=True, is_follow=True)
         await browser.close()
 
 

@@ -54,8 +54,8 @@ NOTE_SAMPLE_PATH = os.path.join(
 )
 
 
-SMALL = "$${{\\footnotesize"
-SMALL_END = "}}$$"
+SMALL = "$${{\\footnotesize\\textbf{"
+SMALL_END = "}}}$$"
 
 
 def convert_news_json_to_markdown(news_list: List[Dict]) -> str:
@@ -70,16 +70,17 @@ def convert_news_json_to_markdown(news_list: List[Dict]) -> str:
         body += f"""
 ### {item['rank']}. {item['summaryTitle']}
 
-{item['points'][0]}
-{item['points'][1]}
-{item['points'][2]}
+{item['url']}
 
-[引用元：{item['title']}（{item['users']} USERS）]({item['url']})
+${SMALL}{item['points'][0]}{SMALL_END}
+{SMALL}{item['points'][1]}{SMALL_END}
+{SMALL}{item['points'][2]}{SMALL_END}
 
 > {item['summary']}
 
 ---
 """
+    # [引用元：{item['title']}（{item['users']} USERS）]({item['url']})
     ### [{item['rank']}. {item['summaryTitle']}]({item['url']})
 
     return header + body
@@ -107,7 +108,7 @@ def save_titles_to_weekly_txt(txt_path: str, titles: list):
                 f.write(title + "\n")
 
 
-def main(publish=True):
+def main(publish=True, is_note_write=False):
     entries = fetch_hatena_news_entries()
     if not entries:
         print("エントリーが見つかりませんでした。セレクタを確認してください。")
@@ -142,7 +143,10 @@ def main(publish=True):
     top_entries = top_entries[:RANK_LIMIT]
 
     # top_entriesのタイトルを週ごとのtxtに記録
-    save_titles_to_weekly_txt(weekly_txt_path, [item["title"] for item in top_entries])
+    if publish:
+        save_titles_to_weekly_txt(
+            weekly_txt_path, [item["title"] for item in top_entries]
+        )
 
     # rank, usersも含めてjson保存（usersはint型で保存）
     json_dir = os.path.join(
@@ -199,7 +203,7 @@ def main(publish=True):
 
     results_eval = simple(
         # topic=f"""次のまとめた記事を総評して1行目に記事のタイトルをキャッチーなアイデアで、以降は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
-        topic=f"""次のまとめた記事を総評して記事のタイトルをキャッチーなアイデアで、以降は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
+        topic=f"""次のまとめた記事を総評してください。1行目はキャッチーでNo.1~3に沿った記事のタイトルを記号を使いながら全角70~90文字で記載してください。以降の行は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
 先頭や文末に～をまとめましたや```markdown、などの情報は不要です。
 
 【構成は下記のサンプルを意識してください】
@@ -228,13 +232,15 @@ def main(publish=True):
     with open(md_filename, "w", encoding="utf-8") as f:
         f.write(markdown)
 
-    asyncio.run(post_note(md_filename, headless=False, publish=publish))
+    if is_note_write:
+        asyncio.run(post_note(md_filename, headless=False, publish=publish))
 
 
 if __name__ == "__main__":
+    is_debug = sys.gettrace() is not None
     arg = sys.argv[1].lower() if len(sys.argv) > 1 else None
     if arg == "true":
         publish = True
     else:
         publish = False
-    main(publish=publish)
+    main(publish=publish, is_note_write=not is_debug)
