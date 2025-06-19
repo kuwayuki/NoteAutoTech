@@ -150,10 +150,11 @@ async def select_image_add(page):
 
     # 画像グリッドからランダムに1つ選択
     # 画像が表示されるまで待機
-    await page.wait_for_selector(".sc-639f8778-2.djbaCR", timeout=10000)
-    await page.wait_for_timeout(2000)  # 追加の待機時間
+    IMAGE_GRID_SELECTOR = 'div[role="button"]'  # これならクラス名が変わってもOK
+    await page.wait_for_selector(IMAGE_GRID_SELECTOR, timeout=10000)
+    await page.wait_for_timeout(2000)
 
-    image_elements = await page.query_selector_all(".sc-639f8778-2.djbaCR")
+    image_elements = await page.query_selector_all(IMAGE_GRID_SELECTOR)
     if image_elements:
         # ランダムに1つの画像を選択
         random_image = random.choice(image_elements)
@@ -170,7 +171,7 @@ async def select_image_add(page):
         if save_button:
             await save_button.scroll_into_view_if_needed()
             await save_button.click()
-            await page.wait_for_timeout(20000)
+            await page.wait_for_timeout(6000)
         else:
             print("保存ボタンが見つかりませんでした")
     else:
@@ -285,7 +286,7 @@ async def like_on_note_topic_ai(page, is_suki=True, is_follow=False):
         await asyncio.gather(*tasks)
 
 
-async def main(markdown_path, headless=False, publish=False):
+async def main(markdown_path, headless=False, publish=True):
 
     title, body, hashtags = parse_markdown(markdown_path)
 
@@ -307,6 +308,10 @@ async def main(markdown_path, headless=False, publish=False):
         await page.goto("https://note.com/notes/new")
 
         await page.wait_for_timeout(500)
+
+        # 6. 下書き保存 or 公開
+        if publish:
+            await select_image_add(page)
 
         # 4. タイトル入力
         url = page.url
@@ -386,7 +391,6 @@ async def main(markdown_path, headless=False, publish=False):
         # 6. 下書き保存 or 公開
         if publish:
             await page.wait_for_timeout(500)
-            await select_image_add(page)
 
             print("記事の投稿をします")
             # 「公開に進む」ボタンを押す
