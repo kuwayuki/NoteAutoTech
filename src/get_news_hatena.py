@@ -8,12 +8,14 @@ from history_manager import (
 )
 from utils import simple
 from post_note import main as post_note
-from post_note import RANK_LIMIT
 from typing import List, Dict
 import asyncio
 import sys
 import random
 
+ALL_RANK = 7
+DEFAULT_RANK_LIMIT = 3
+RANK_LIMIT = DEFAULT_RANK_LIMIT
 
 # 魚拓シリーズに使える絵文字のリスト
 emoji_list = [
@@ -44,6 +46,33 @@ TEMPLATE_TITLE = (
     # f"### {datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}｜"
     # f"# 【{datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}】"
 )
+
+
+# 各ランキングごとの要約プロンプト
+ARTICLE_SUMMARY_PROMPT = [
+    """あなたはプロのライターです。
+タイトルから記事で一番伝えたい部分を考察し、
+1行目に自分なりのタイトルを20文字程度で、
+2~4行目の3行に・から始まる箇条書き（記号なし）で1行は40文字(80byte)なのでそれ以下、
+5行目以降に300文字以内で要約してください。
+先頭や文末に～をまとめましたや改行などの情報は不要です。""",
+    """あなたはプロのライターです。
+タイトルから記事で一番伝えたい部分を考察し、
+1行目に自分なりのタイトルを先頭に絵文字付きで20文字程度で、
+2~4行目の3行に・から始まる箇条書き（記号なし）で1行は40文字(80byte)なのでそれ以下、
+5行目以降に300文字以内で要約してください。
+先頭や文末に～をまとめましたや改行などの情報は不要です。""",
+]
+
+# 全体評価プロンプト
+ARTICLE_EVALUATION_PROMPT = [
+    """次のまとめた記事を総評してください。1行目はランキングの中から最も目立つ or 役立ちそうな内容を一つに絞ってタイトルを60文字程度でトレンドに沿ってとっても刺激的に記載してください。以降の行は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
+先頭や文末に～をまとめましたや```markdown、などの情報は不要です。""",
+    """次のまとめた記事を総評してください。1行目はキャッチーでNo.1~3に沿った記事のタイトルを記号を使いながら全角70~90文字で記載してください。以降の行は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
+先頭や文末に～をまとめましたや```markdown、などの情報は不要です。""",
+]
+# topic=f"""次のまとめた記事を総評して1行目に記事のタイトルをキャッチーなアイデアで、以降は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
+
 # noteの心得.mdのパス
 NOTE_KOKOROE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "public", "noteの心得.md"
@@ -110,6 +139,8 @@ def save_titles_to_weekly_txt(txt_path: str, titles: list):
 
 def main(publish=True, is_note_write=False):
     entries = fetch_hatena_news_entries()
+    is_all = ALL_RANK == RANK_LIMIT
+
     if not entries:
         print("エントリーが見つかりませんでした。セレクタを確認してください。")
         return
@@ -131,7 +162,7 @@ def main(publish=True, is_note_write=False):
     weekly_txt_path = os.path.join(weekly_txt_dir, "titles.txt")
     recorded_titles = load_titles_from_weekly_txt(weekly_txt_path)
 
-    history = load_history(history_filename)
+    history = load_history(history_filename) if is_all else []
     # 週ごとの記録済タイトルも除外条件に追加
     top_entries = [
         item
@@ -143,7 +174,7 @@ def main(publish=True, is_note_write=False):
     top_entries = top_entries[:RANK_LIMIT]
 
     # top_entriesのタイトルを週ごとのtxtに記録
-    if publish:
+    if publish and not is_all:
         save_titles_to_weekly_txt(
             weekly_txt_path, [item["title"] for item in top_entries]
         )
@@ -180,12 +211,7 @@ def main(publish=True, is_note_write=False):
         if item["url"]:
             urlBody = fetch_article_content_from_url(item["url"])
             results = simple(
-                topic=f"""あなたはプロのライターです。
-タイトルから記事で一番伝えたい部分を考察し、
-1行目に自分なりのタイトルを先頭に絵文字付きで20文字程度で、
-2~4行目の3行に・から始まる箇条書き（記号なし）で1行は40文字(80byte)なのでそれ以下、
-5行目以降に300文字以内で要約してください。
-先頭や文末に～をまとめましたや改行などの情報は不要です。
+                topic=f"""{ARTICLE_SUMMARY_PROMPT[0]}
 
 タイトル: {item['title']}
 記事: {urlBody}""",
@@ -202,9 +228,7 @@ def main(publish=True, is_note_write=False):
     markdown = convert_news_json_to_markdown(entries_for_json)
 
     results_eval = simple(
-        # topic=f"""次のまとめた記事を総評して1行目に記事のタイトルをキャッチーなアイデアで、以降は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
-        topic=f"""次のまとめた記事を総評してください。1行目はキャッチーでNo.1~3に沿った記事のタイトルを記号を使いながら全角70~90文字で記載してください。以降の行は総評を記載してください。箇条書きの場合は（記号なし）で1行は30文字(60byte)なのでそれ以下。後半には決まり文句と、最後の行にはハッシュタグを記載してください。
-先頭や文末に～をまとめましたや```markdown、などの情報は不要です。
+        topic=f"""{ARTICLE_EVALUATION_PROMPT[0]}
 
 【構成は下記のサンプルを意識してください】
 {note_sample}
@@ -238,9 +262,21 @@ def main(publish=True, is_note_write=False):
 
 if __name__ == "__main__":
     is_debug = sys.gettrace() is not None
+
+    # 第1引数の処理（publish フラグ）
     arg = sys.argv[1].lower() if len(sys.argv) > 1 else None
     if arg == "true":
         publish = True
     else:
         publish = False
+
+    # 第2引数の処理（RANK_LIMIT の上書き）
+    if len(sys.argv) > 2:
+        try:
+            rank_limit_override = int(sys.argv[2])
+            if rank_limit_override > 0:
+                RANK_LIMIT = rank_limit_override
+        except ValueError:
+            pass  # 数値以外の場合は無視
+
     main(publish=publish, is_note_write=not is_debug)

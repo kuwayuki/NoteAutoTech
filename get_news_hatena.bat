@@ -1,8 +1,9 @@
 @echo off
 cd /d %~dp0
 
-REM å¼•æ•°ã‚’è¡¨ç¤ºï¼ˆç¢ºèªç”¨ï¼‰
-echo å¼•æ•°1: %1
+REM ˆø”‚ð•\Ž¦iŠm”F—pj
+echo ˆø”1: %1
+echo ˆø”2: %2
 
-REM Python ã‚¹ã‚¯ãƒªãƒ—ãƒˆã«å¼•æ•°ã‚’æ¸¡ã™
-python ./src/get_news_hatena.py %1
+REM Python ƒXƒNƒŠƒvƒg‚Éˆø”‚ð“n‚·
+python ./src/get_news_hatena.py %1 %2

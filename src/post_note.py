@@ -10,8 +10,6 @@ import sys
 import re
 from screeninfo import get_monitors
 
-RANK_LIMIT = 3
-
 load_dotenv()
 EMAIL = os.getenv("NOTE_EMAIL")
 PASSWORD = os.getenv("NOTE_PASSWORD")
@@ -412,7 +410,7 @@ async def main(markdown_path, headless=False, publish=True):
             print("記事の投稿が完了しました")
 
             results = simple(
-                topic=f"""記事の内容からtwitterで目を引くような50文字以内の1文のつぶやきにしてください。
+                topic=f"""記事の内容からtwitterで目を引くようにトレンドに沿って刺激的な80文字以内の1文のつぶやきにしてください。
 先頭や文末に～をまとめましたや改行などの情報は不要です。
 
 記事: {body}""",
