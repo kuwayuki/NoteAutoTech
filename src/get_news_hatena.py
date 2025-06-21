@@ -4,7 +4,6 @@ from hatena_scraper import fetch_hatena_news_entries, fetch_article_content_from
 from history_manager import (
     load_history,
     save_history_json,
-    load_history_json,
 )
 from utils import simple
 from post_note import main as post_note
@@ -42,8 +41,8 @@ emoji_list = [
 # ランダムに1つ選ぶ
 chosen_emoji = random.choice(emoji_list)
 TEMPLATE_TITLE = (
-    f""
-    # f"### {datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}｜"
+    # f""
+    f"### {datetime.now().month}/{datetime.now().day}IT速報{chosen_emoji}｜"
     # f"# 【{datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}】"
 )
 
@@ -149,9 +148,6 @@ def main(publish=True, is_note_write=False):
     # historyディレクトリをsrcの一つ上のディレクトリに指定
     history_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "history")
     os.makedirs(history_dir, exist_ok=True)
-    history_filename = os.path.join(
-        history_dir, f"history_{now.year}_{now.month:02d}_{now.day:02d}.txt"
-    )
 
     # 週ごとのタイトル記録ファイルパスを決定
     sunday = get_sunday(now)
@@ -162,7 +158,7 @@ def main(publish=True, is_note_write=False):
     weekly_txt_path = os.path.join(weekly_txt_dir, "titles.txt")
     recorded_titles = load_titles_from_weekly_txt(weekly_txt_path)
 
-    history = load_history(history_filename) if is_all else []
+    history = load_history(weekly_txt_path) if not is_all else []
     # 週ごとの記録済タイトルも除外条件に追加
     top_entries = [
         item
@@ -237,13 +233,9 @@ def main(publish=True, is_note_write=False):
 {markdown}""",
     )
     linesEval = [line for line in results_eval[0].split("\n")]
+    topTitle = TEMPLATE_TITLE if is_all else ""
     markdown = (
-        TEMPLATE_TITLE
-        + linesEval[0]
-        + "\n"
-        + markdown
-        + "\n"
-        + "\n".join(linesEval[1:])
+        topTitle + linesEval[0] + "\n" + markdown + "\n" + "\n".join(linesEval[1:])
     )
 
     # markdownをhistory/mdディレクトリに保存
