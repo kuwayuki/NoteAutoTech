@@ -42,7 +42,7 @@ emoji_list = [
 chosen_emoji = random.choice(emoji_list)
 TEMPLATE_TITLE = (
     # f""
-    f"### {datetime.now().month}/{datetime.now().day}IT速報{chosen_emoji}｜"
+    f"### 【{datetime.now().month}/{datetime.now().day} IT速報{chosen_emoji}】"
     # f"# 【{datetime.now().month}/{datetime.now().day} 技術魚拓{chosen_emoji}】"
 )
 

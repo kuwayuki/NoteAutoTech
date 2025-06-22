@@ -13,6 +13,7 @@ from screeninfo import get_monitors
 load_dotenv()
 EMAIL = os.getenv("NOTE_EMAIL")
 PASSWORD = os.getenv("NOTE_PASSWORD")
+TWEET_PASSWORD = os.getenv("TWEET_PASSWORD")
 
 
 # Markdownファイルからタイトルと本文を取得
@@ -76,7 +77,7 @@ async def tweet(page, url, title):
 
     # パスワード入力
     await new_page.wait_for_selector('input[name="password"]', timeout=10000)
-    await new_page.fill('input[name="password"]', PASSWORD)
+    await new_page.fill('input[name="password"]', TWEET_PASSWORD)
     await new_page.click('button:has-text("ログイン")')
 
     # 投稿ボタンが表示されるまで待つ
