@@ -334,10 +334,10 @@ async def main(markdown_path, headless=False, publish=True):
         # 目次ボタンをクリック
         await page.wait_for_selector("#toc-setting")
         await page.click("#toc-setting")
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(1000)
 
         await page.keyboard.press("ArrowDown")
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(1000)
 
         # (2) paste イベントを発火させて本文を挿入
         await page.evaluate(
@@ -417,7 +417,9 @@ async def main(markdown_path, headless=False, publish=True):
 記事: {body}""",
             )
             summary = results[0]
+            # 一旦コメントアウト
             await tweet(page, url, summary)
+
             await like_on_note_topic_ai(page, is_suki=True, is_follow=True)
         else:
             print("記事の下書きをします")

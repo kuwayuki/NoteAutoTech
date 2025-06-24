@@ -12,11 +12,11 @@ TWEET_PASSWORD = os.getenv("TWEET_PASSWORD")
 
 COMMUNITY_URLS = [
     "https://x.com/i/communities/1695273002366300256",
-    "https://x.com/i/communities/1771310049350303878",
     "https://x.com/i/communities/1742851763986940094",
     "https://x.com/i/communities/1506796313685667840",
-    "https://x.com/i/communities/1506778440711639042",
     "https://x.com/i/communities/1506803429657944069",
+    # "https://x.com/i/communities/1506778440711639042",
+    # "https://x.com/i/communities/1771310049350303878",
 ]
 
 EMOJI_LIST = ["✨", "🚀", "🎉", "💪", "🔥", "✅", "😊", "💡", "🌟", "🙌", "💯", "👍"]
@@ -53,7 +53,7 @@ async def login_to_twitter(page):
     print("Twitterへのログインが完了しました。")
 
 
-async def post_to_communities(page, post_text):
+async def post_to_communities(page, post_text=None):
     """指定されたテキストを複数のTwitterコミュニティに投稿する"""
     context = page.context
     for i, url in enumerate(COMMUNITY_URLS):
@@ -68,14 +68,17 @@ async def post_to_communities(page, post_text):
             await new_page.wait_for_timeout(2000)  # 投稿モーダルが表示されるのを待つ
 
             # テキストを少し変更して重複を回避
-            emoji = EMOJI_LIST[i % len(EMOJI_LIST)]
-            modified_post_text = f"{post_text} {emoji}"
+            if post_text:
+                emoji = EMOJI_LIST[i % len(EMOJI_LIST)]
+                modified_post_text = f"{post_text} {emoji}"
+            else:
+                modified_post_text = await get_post_text()
 
             # テキストを入力
             composer_selector = 'div[data-testid="tweetTextarea_0"]'
             await new_page.wait_for_selector(composer_selector, timeout=10000)
             await new_page.fill(composer_selector, modified_post_text)
-            print(f"投稿内容: {modified_post_text}")
+            # print(f"投稿内容: {modified_post_text}")
             await new_page.wait_for_timeout(500)
 
             # 投稿ボタンをクリック
@@ -105,30 +108,27 @@ async def post_to_communities(page, post_text):
 
 async def get_post_text():
     results = simple(
-        topic=f"""「フォローお願いします！🙇‍♀️\nフォロバ絶対にします！」を記号や絵文字だけ変えてください。
+        topic=f"""「フォローよろしくお願いします🙇‍♀️フォローしてくれたら必ずフォロバします！」を同じ意味で40文字以内で微妙に書き直してください。
 先頭や文末に～をまとめましたや改行などの情報は不要です。""",
     )
     summary = results[0]
+    print(summary)
     post_text = f"{summary}\n#フォロバ100 \n#フォローしてくれた人全員フォローする\n#相互フォロー\n"
     return post_text
 
 
 async def main(headless=False):
-    post_text = await get_post_text()
-
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=headless)
         context = await browser.new_context()
         page = await context.new_page()
 
         await login_to_twitter(page)
-        await post_to_communities(page, post_text)
+        await post_to_communities(page)
 
         print("すべてのコミュニティへの投稿が完了しました。")
         await browser.close()
 
 
 if __name__ == "__main__":
-    # headフルモードで実行したい場合は False に変更
-    # 例: asyncio.run(main(headless=False))
     asyncio.run(main())
