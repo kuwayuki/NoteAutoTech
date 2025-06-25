@@ -9,13 +9,15 @@ load_dotenv()
 EMAIL = os.getenv("TWEEt_EMAIL")
 USER_NAME = os.getenv("USER_NAME")
 TWEET_PASSWORD = os.getenv("TWEET_PASSWORD")
+HASH_TAGS = f"\n#フォロバ100 \n#フォローしてくれた人全員フォローする\n#相互フォロー\n#いいねした人フォローする\n"
 
 COMMUNITY_URLS = [
     "https://x.com/i/communities/1695273002366300256",
     "https://x.com/i/communities/1742851763986940094",
+    "https://x.com/i/communities/1634787609515036673",
     "https://x.com/i/communities/1506796313685667840",
     "https://x.com/i/communities/1506803429657944069",
-    # "https://x.com/i/communities/1506778440711639042",
+    "https://x.com/i/communities/1506778440711639042",
     # "https://x.com/i/communities/1771310049350303878",
 ]
 
@@ -56,6 +58,11 @@ async def login_to_twitter(page):
 async def post_to_communities(page, post_text=None):
     """指定されたテキストを複数のTwitterコミュニティに投稿する"""
     context = page.context
+    if post_text:
+        post_text_list = post_text.split("\n")
+    else:
+        post_text_list = await get_post_texts()
+
     for i, url in enumerate(COMMUNITY_URLS):
         new_page = await context.new_page()
         try:
@@ -72,7 +79,7 @@ async def post_to_communities(page, post_text=None):
                 emoji = EMOJI_LIST[i % len(EMOJI_LIST)]
                 modified_post_text = f"{post_text} {emoji}"
             else:
-                modified_post_text = await get_post_text()
+                modified_post_text = post_text_list[i] + f"\n{HASH_TAGS}"
 
             # テキストを入力
             composer_selector = 'div[data-testid="tweetTextarea_0"]'
@@ -93,8 +100,9 @@ async def post_to_communities(page, post_text=None):
             await new_page.click(post_button_selector)
             print(f"コミュニティに投稿しました: {url}")
             wait_seconds = random.randint(1, 6) * 10
-            print(f"次の投稿まで {wait_seconds} 秒間待機します...")
-            await new_page.wait_for_timeout(wait_seconds * 1000)
+            additional_seconds = random.randint(1, 9)
+            print(f"次の投稿まで {wait_seconds + additional_seconds} 秒間待機します...")
+            await new_page.wait_for_timeout((wait_seconds + additional_seconds) * 1000)
 
         except Exception as e:
             print(f"コミュニティへの投稿中にエラーが発生しました: {url}")
@@ -107,14 +115,37 @@ async def post_to_communities(page, post_text=None):
 
 
 async def get_post_text():
+    topic = (
+        f"""「フォローよろしくお願いします🙇‍♀️必ずフォロバします！✨」\nのような文を人気女性ブロガーが作成したような文章で全角50文字程度で作成してください。
+先頭や文末に～をまとめましたや記号・改行、ハッシュタグなどの情報は不要です。""",
+    )
     results = simple(
-        topic=f"""「フォローよろしくお願いします🙇‍♀️フォローしてくれたら必ずフォロバします！」を同じ意味で40文字以内で微妙に書き直してください。
-先頭や文末に～をまとめましたや改行などの情報は不要です。""",
+        topic=topic,
+        provider="openai",
+        model="gpt-4o-mini",
     )
     summary = results[0]
     print(summary)
-    post_text = f"{summary}\n#フォロバ100 \n#フォローしてくれた人全員フォローする\n#相互フォロー\n"
+    post_text = f"{summary}\n{HASH_TAGS}"
     return post_text
+
+
+async def get_post_texts():
+    topic = (
+        f"""「フォローよろしくお願いします🙇‍♀️必ずフォロバします！✨」\nと同じ意味のような1行の文を人気女性ブロガーが作成したような文章で全角50文字程度で{len(COMMUNITY_URLS)}個作成して改行区切りで教えてください。
+先頭や文末に～をまとめました、ハッシュタグなどの余計な情報は不要です。""",
+    )
+    results = simple(
+        topic=topic,
+        provider="openai",
+        model="gpt-4o-mini",
+    )
+    summary = results[0]
+    summary_list = [line.strip() for line in summary.split("\n") if line.strip()]
+    if len(summary_list) > len(COMMUNITY_URLS):
+        summary_list = summary_list[: len(COMMUNITY_URLS)]
+    print(summary_list)
+    return summary_list
 
 
 async def main(headless=False):
@@ -131,4 +162,6 @@ async def main(headless=False):
 
 
 if __name__ == "__main__":
+    # asyncio.run(get_post_texts())
+    # asyncio.run(get_post_text())
     asyncio.run(main())
